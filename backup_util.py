@@ -17,27 +17,40 @@ parser.add_argument('param', nargs='*', help="Command param")
 
 
 args = parser.parse_args()
-
-if not args.config:
-    print('aaaa')
-
 config = configparser.ConfigParser()
 config.read_file(open(args.config))
 
-conf = config['main']
+confMain = config['main']
 
-if not 'src' in conf:
+if not 'src' in confMain:
     print('Config file: src param is not configured')
     exit()
 
-if not 'dest' in conf:
+if not 'dest' in confMain:
     print('Config file: dest param is not configured')
     exit()
 
-#if not 'compression' in conf:
-#    conf['compression'] = 'gz' #bz2 xz
-if not 'compression_level' in conf:
-    conf['compression_level'] = '9'
+conf = {
+	'src': confMain.get('src'),
+	'dest': confMain.get('dest'),
+	'arcMode': confMain.get('arcMode', 1),
+	'compression': confMain.get('compression', 'gz'),
+	'compressionLevel': confMain.get('compressionLevel', 9),
+	'maxCopyCount': confMain.get('maxCopyCount', 0),
+	'exclude': confMain.get('exclude', []),
+	'compare': confMain.get('compare', 'date'),
+	'maxCopyCounts': config['maxCopyCounts'],
+}
+#conf['src'] = confMain.get('src')
+#conf['dest'] = confMain.get('dest')
+#conf['arcMode'] = confMain.get('arcMode', 1)
+#conf['compression'] = confMain.get('compression', 'gz')
+#conf['compressionLevel'] = confMain.get('compressionLevel', 9)
+#conf['copyCount'] = confMain.get('copyCount', 0)
+#conf['exclude'] = confMain.get('exclude', [,])
+#conf['compare'] = confMain.get('compare', 'date')
+#conf['copyCounts'] = config['copyCounts']
+
 
 b = Backup(conf)
 b.dispatch(args.command, args.param)

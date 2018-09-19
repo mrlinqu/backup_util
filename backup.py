@@ -15,6 +15,11 @@ class Backup:
         self.archExt = '.'+self.config['compression'] if 'compression' in self.config else ''
         self.init_db()
 
+        self.copyCountsPaths = []
+
+        #for k in config['copyCounts']:
+        #    self.copyCountsPaths.append(k)
+
 
     def file_md5(fname):
         hash_md5 = hashlib.md5()
@@ -43,8 +48,8 @@ class Backup:
     def in_exlude(self, fname):
         for exlude in self.config['exclude']:
             if (fnmatch(fname, exlude)):
-                return False
-        return True
+                return True
+        return False
 
     def cmd_backup(self):
         backupTimestamp = datetime.now().strftime('%Y%m%dT%H%M%S%z')
@@ -53,6 +58,8 @@ class Backup:
                 srcname = os.path.join(dirname, filename)
                 relname = srcname.replace(self.config['src'], '', 1)
 
+                ########################################################################
+                # в списке исключений - игнорируем
                 if (self.in_exlude(relname)):
                     continue
 
@@ -72,14 +79,19 @@ class Backup:
 
                 self.cur.execute(sql, sqldt)
 
+                ########################################################################
+                # совпадений не найдено - копируем
                 if (not len(self.cur.fetchall())):
-                    if ('arc_mode' in self.config and self.config['arc_mode'] == '1'):
+                    if (self.config['arcMode'] == '1'):
                         mirname = os.path.normpath(self.config['dest'] + '/' + relname + self.archExt)
                     else:
                         mirname = os.path.normpath(self.config['dest'] + '/mirror/' + relname + self.archExt)
 
+                    ########################################################################
+                    # файл уже есть в зеркале - перенести в архив
+                    archname = ''
                     if (os.path.isfile(mirname)):
-                        if ('arc_mode' in self.config and self.config['arc_mode'] == '1'):
+                        if (self.config['arcMode'] == '1'):
                             #get extension?
                             archname = os.path.normpath(mirname + Backup.archFolderPostfix + '/' + backupTimestamp + self.archExt)
                         else:
@@ -88,15 +100,16 @@ class Backup:
                         Backup.make_path(archname)
                         os.rename(mirname, archname)
 
+
                     Backup.make_path(srcname)
                     Backup.make_path(mirname)
 
                     f_in = open(srcname, 'rb')
 
                     if ('compression' in self.config and self.config['compression'] == 'bz2'):
-                        f_out = bz2.BZ2File(mirname, 'wb', compresslevel=9)
+                        f_out = bz2.BZ2File(mirname, 'wb', compresslevel = self.config['compressionLevel'])
                     elif ('compression' in self.config and self.config['compression'] == 'gz'):
-                        f_out = gzip.GzipFile(mirname, 'wb', compresslevel=9)
+                        f_out = gzip.GzipFile(mirname, 'wb', compresslevel = self.config['compressionLevel'])
                     else:
                         f_out = open(mirname, 'wb')
 
@@ -104,6 +117,9 @@ class Backup:
 
                     f_in.close()
                     f_out.close()
+
+                    ########################################################################
+                    # создаем/обновляем запись в базе
 
                     self.cur.execute('SELECT * FROM files WHERE fullname=?', (relname,))
 
@@ -116,6 +132,33 @@ class Backup:
 
                     self.cur.execute(sql, sql_dt)
                     self.conn.commit()
+
+                    ########################################################################
+                    # удаление старых копий
+
+                    if (archname != ''):
+                        maxCopyCount = int(self.config['maxCopyCount'])
+                        for k in self.config['maxCopyCounts']:
+                            if (fnmatch(relname, k)):
+                                maxCopyCount = int(self.config['maxCopyCounts'][k])
+                                break
+
+                        if maxCopyCount > 0:
+                            fileList = []
+                            if (self.config['arcMode'] == '1'):
+                                dir_name = os.path.normpath(mirname + Backup.archFolderPostfix)
+                                fileList = [os.path.normpath(dir_name + '/' + f) for f in os.listdir(dir_name)]
+                            else:
+                                dir_name = os.path.normpath(self.config['dest'] + '/arch/')
+                                mask = os.path.normpath(self.config['dest'] + '/arch/*/' + relname + self.archExt)
+                                for root, dirs, files in os.walk(dir_name):
+                                    fileList += [os.path.join(root, f) for f in files if fnmatch(os.path.join(root, f), mask)]
+
+                            fileList.sort()
+
+                            while (len(fileList) > maxCopyCount):
+                                f = fileList.pop(0)
+                                os.remove(f)
 
     def decompress(self, src, dst):
         (directory, filename) = os.path.split(src)
@@ -139,7 +182,7 @@ class Backup:
         f_out.close()
 
     def cmd_restore(self, src, dst):
-        if ('arc_mode' in self.config and self.config['arc_mode'] == '1'):
+        if (self.config['arcMode'] == '1'):
             mirname = os.path.normpath(self.config['dest'] + '/' + src)
         else:
             mirname = os.path.normpath(self.config['dest'] + '/mirror/' + src)
