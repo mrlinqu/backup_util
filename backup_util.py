@@ -20,12 +20,6 @@ class Backup:
         self.archExt = '.'+self.config['compression'] if 'compression' in self.config else ''
         self.init_db()
 
-        self.copyCountsPaths = []
-
-        #for k in config['copyCounts']:
-        #    self.copyCountsPaths.append(k)
-
-
     def file_md5(fname):
         hash_md5 = hashlib.md5()
         with open(fname, "rb") as f:
@@ -215,6 +209,7 @@ class Backup:
         pass
 
 
+
 ########################################################################
 # main
 
@@ -249,8 +244,8 @@ conf = {
 	'dest': confMain.get('dest'),
 	'arcMode': confMain.get('arcMode', 1),
 	'compression': confMain.get('compression', 'gz'),
-	'compressionLevel': confMain.get('compressionLevel', 9),
-	'maxCopyCount': confMain.get('maxCopyCount', 0),
+	'compressionLevel': int(confMain.get('compressionLevel', 9)),
+	'maxCopyCount': int(confMain.get('maxCopyCount', 0)),
 	'exclude': confMain.get('exclude', []),
 	'compare': confMain.get('compare', 'date'),
 	'maxCopyCounts': config['maxCopyCounts'],
